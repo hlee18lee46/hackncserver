@@ -74,10 +74,27 @@ db = client['hackncCluster']  # MongoDB database name
 user_collection = db['users']
 collection = db['quiz_questions']
 scores_collection = db['user_scores']  # New collection for scores
+financial_collection = db['financial']  # New collection for scores
 
 
 api_key = os.getenv("OPENAI_API_KEY")
-
+"""
+@app.route('/get_financial_data', methods=['GET'])
+def get_financial_data():
+    try:
+        # Aggregate data to count accounts by type
+        pipeline = [
+            {"$group": {"_id": "$type", "count": {"$sum": 1}}}
+        ]
+        results = list(financial_collection.aggregate(pipeline))
+        
+        # Transform data for frontend consumption
+        data = [{"type": result["_id"], "count": result["count"]} for result in results]
+        
+        return jsonify(data), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+"""
 @app.route('/api/scores/create', methods=['POST'])
 def create_score():
     try:
@@ -98,6 +115,19 @@ def create_score():
     except Exception as e:
         print(f"Error creating score: {str(e)}")
         return jsonify({'error': str(e)}), 500
+@app.route('/get_stored_accounts', methods=['GET'])
+def get_stored_accounts():
+    try:
+        # Fetch all account data from the 'financial' collection
+        accounts = list(financial_collection.find())
+        
+        # Convert ObjectId to string for JSON serialization
+        for account in accounts:
+            account["_id"] = str(account["_id"])
+        
+        return jsonify(accounts), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/scores/<score_id>', methods=['GET'])
 def get_score(score_id):
@@ -322,6 +352,26 @@ def create_link_token():
 
 @app.route('/exchange_public_token', methods=['POST'])
 def exchange_public_token():
+    public_token = request.json.get("public_token")
+    if not public_token:
+        return jsonify({"error": "public_token is required"}), 400
+    try:
+        exchange_request = ItemPublicTokenExchangeRequest(public_token=public_token)
+        exchange_response = client.item_public_token_exchange(exchange_request)
+        access_token = exchange_response.access_token
+
+        # Store the access token for future use (e.g., in a database or in memory)
+        user_id = "unique_user_id"  # Replace with actual user ID
+        user_access_tokens[user_id] = access_token
+
+        return jsonify({"access_token": access_token, "message": "Access token saved"}), 200
+    except plaid.ApiException as e:
+        error_response = e.body if hasattr(e, 'body') else str(e)
+        return jsonify({"error": error_response}), 500
+
+"""
+@app.route('/exchange_public_token', methods=['POST'])
+def exchange_public_token():
     print("Exchange public token route hit")
     public_token = request.json.get('public_token')
     if not public_token:
@@ -339,7 +389,7 @@ def exchange_public_token():
     except plaid.ApiException as e:
         error_response = e.body if hasattr(e, 'body') else str(e)
         return jsonify({"error": error_response}), 500
-
+"""
 @app.route('/get_accounts', methods=['GET'])
 def get_accounts():
     print("Get accounts route hit")
@@ -378,6 +428,23 @@ def get_accounts():
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
+@app.route('/get_financial_data_chart', methods=['GET'])
+def get_financial_data():
+    try:
+        # Aggregate data by type and sum the balances.current for each type
+        pipeline = [
+            {"$group": {"_id": "$type", "total_balance": {"$sum": "$balances.current"}}}
+        ]
+        results = list(financial_collection.aggregate(pipeline))
+        
+        # Transform data for frontend consumption
+        data = [{"type": result["_id"], "balance": result["total_balance"]} for result in results]
+        
+        return jsonify(data), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/get_financial_data', methods=['GET'])
 def get_financial_data():
