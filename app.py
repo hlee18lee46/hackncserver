@@ -178,6 +178,61 @@ def verify_answer(index, selected_answer):
         return jsonify({'error': str(e)}), 500
 """
 
+def determine_account_category(account_type, subtype):
+    """
+    Categorize accounts as assets or liabilities based on their type
+    
+    Types:
+    - depository: ASSET (checking, savings, CD, money market, HSA, cash management)
+    - credit: LIABILITY (credit cards)
+    - investment: ASSET (IRA, 401k)
+    - loan: LIABILITY (student loans, mortgages)
+    """
+    
+    # Liabilities
+    if account_type in ['loan', 'credit']:
+        return 'liability'
+    
+    # Assets
+    if account_type in ['depository', 'investment']:
+        return 'asset'
+        
+    # Default case (though all types should be covered)
+    print(f"Warning: Unknown account type: {account_type}, subtype: {subtype}")
+    return 'asset'
+"""
+@app.route('/get_account_types', methods=['GET'])
+def get_account_types():
+    try:
+        type_summary = {
+            'depository': {
+                'category': 'asset',
+                'subtypes': ['checking', 'savings', 'cd', 'money market', 'hsa', 'cash management']
+            },
+            'credit': {
+                'category': 'liability',
+                'subtypes': ['credit card']
+            },
+            'investment': {
+                'category': 'asset',
+                'subtypes': ['ira', '401k']
+            },
+            'loan': {
+                'category': 'liability',
+                'subtypes': ['student', 'mortgage']
+            }
+        }
+        
+        return jsonify({
+            'success': True,
+            'account_types': type_summary
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+"""
 @app.route('/api/question/<int:index>', methods=['GET'])
 def get_question(index):
     try:
@@ -378,7 +433,46 @@ def get_accounts():
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+"""
+@app.route('/get_accounts', methods=['GET'])
+def get_accounts():
+    print("Get accounts route hit")
+    user_id = 'unique_user_id'  # In a real app, use the authenticated user's ID
+    access_token = user_access_tokens.get(user_id)
+    if not access_token:
+        return jsonify({'error': 'Access token not found'}), 400
+    try:
+        balance_request = AccountsBalanceGetRequest(access_token=access_token)
+        balance_response = client.accounts_balance_get(balance_request)
+        accounts = balance_response.accounts
+        accounts_data = []
+        for account in accounts:
+            account_info = {
+                'account_id': account.account_id,
+                'name': account.name,
+                'type': account.type.value if account.type else None,
+                'subtype': account.subtype.value if account.subtype else None,
+                'mask': account.mask,
+                'balances': {
+                    'available': float(account.balances.available) if account.balances.available is not None else None,
+                    'current': float(account.balances.current) if account.balances.current is not None else None,
+                    'limit': float(account.balances.limit) if account.balances.limit is not None else None,
+                }
+            }
+            accounts_data.append(account_info)
+        return jsonify({'accounts': accounts_data})
+    except plaid.ApiException as e:
+        error_response = e.body if hasattr(e, 'body') else str(e)
+        return jsonify({"error": error_response}), 500
 
+    
+    
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+"""
 @app.route('/get_financial_data', methods=['GET'])
 def get_financial_data():
     print("Get financial data route hit")
